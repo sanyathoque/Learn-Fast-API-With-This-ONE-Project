@@ -1,0 +1,13 @@
+[project]
+name = "learn-fast-api-with-this-one-project"
+version = "0.1.0"
+description = "FastAPI tutorial project reconstructed from screenshots"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "sqlalchemy",
+    "aiosqlite",
+    "python-multipart",
+]
