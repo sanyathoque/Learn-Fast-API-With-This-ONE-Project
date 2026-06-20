@@ -1,7 +1,7 @@
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Depends
+from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,7 +43,7 @@ def read_root():
 
 # /posts  -> list every post (with an optional ?limit= query parameter)
 @app.get("/posts")
-def get_all_posts(limit: int = None):
+def get_all_posts(limit: int | None = None):
     if limit:
         return list(text_posts.values())[:limit]
     return text_posts
@@ -88,7 +88,9 @@ def get_post(id: int) -> PostResponse:
 @app.post("/posts", status_code=201)
 def create_post(post: PostCreate) -> PostResponse:
     new_post = {"title": post.title, "content": post.content}
-    text_posts[max(text_posts.keys()) + 1] = new_post
+    # default=0 avoids a ValueError when the store is empty (e.g. all deleted).
+    new_id = max(text_posts.keys(), default=0) + 1
+    text_posts[new_id] = new_post
     return new_post
 
 
@@ -98,7 +100,7 @@ def create_post(post: PostCreate) -> PostResponse:
 def create_posts_bulk(posts: list[PostCreate]) -> list[PostResponse]:
     created = []
     for post in posts:
-        new_id = max(text_posts.keys()) + 1
+        new_id = max(text_posts.keys(), default=0) + 1
         new_post = {"title": post.title, "content": post.content}
         text_posts[new_id] = new_post
         created.append(new_post)
@@ -162,5 +164,12 @@ async def delete_post(post_id: str, session: AsyncSession = Depends(get_async_se
         await session.commit()
 
         return {"success": True, "message": "Post deleted successfully"}
+    except HTTPException:
+        # Let intentional HTTP errors (like the 404 above) pass through
+        # unchanged instead of being re-wrapped as a 500.
+        raise
+    except ValueError:
+        # uuid.UUID(post_id) raises ValueError on a malformed id.
+        raise HTTPException(status_code=400, detail="Invalid post id")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
